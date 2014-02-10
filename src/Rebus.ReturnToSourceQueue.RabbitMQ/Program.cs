@@ -9,7 +9,7 @@ using Rebus.Shared;
 
 namespace Rebus.ReturnToSourceQueue.RabbitMQ
 {
-    class Program
+    internal class Program
     {
         static int Main(string[] args)
         {
@@ -41,7 +41,7 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
         {
             if (!parameters.DryRun.HasValue && parameters.Interactive)
             {
-                var dryrun = PromptChar(new[] { 'd', 'm' }, "Perform a (d)ry dun or actually (m) move messages?");
+                var dryrun = PromptChar(new[] {'d', 'm'}, "Perform a (d)ry dun or actually (m) move messages?");
 
                 switch (dryrun)
                 {
@@ -73,8 +73,8 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
 
             if (!parameters.AutoMoveAllMessages.HasValue)
             {
-                var mode = PromptChar(new[] { 'a', 'p' },
-                                      "Move (a)ll messages back to their source queues or (p)rompt for each message");
+                var mode = PromptChar(new[] {'a', 'p'},
+                    "Move (a)ll messages back to their source queues or (p)rompt for each message");
 
                 switch (mode)
                 {
@@ -95,9 +95,9 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
 
         static Parameters ParseArgs(string[] args)
         {
-            if (args.Length == 0) return new Parameters { Interactive = true };
+            if (args.Length == 0) return new Parameters {Interactive = true};
 
-            var parameters = new Parameters { Interactive = false };
+            var parameters = new Parameters {Interactive = false};
 
             if (args.Any(a => a.Contains('?')))
             {
@@ -126,7 +126,7 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
 
             var validKeyValueArgs = new Dictionary<string, Action<Parameters, string>>
             {
-                {"--SourceQueue", (p, value) => p.SourceQueue = value}
+                {"--SourceQueue", (param, value) => param.SourceQueue = value}
             };
 
 
@@ -140,7 +140,12 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
                 // apply the argument
                 if (arg.Contains("="))
                 {
-                    var arguementValue = arg.Split('=').Last();
+                    var keyValueArguement = arg.Split('=');
+                    var arguementValue = keyValueArguement.LastOrDefault();
+                    if (arguementValue == null || keyValueArguement.Length != 2)
+                    {
+                        throw new NiceException("Unknown value for: {0} - invoke with ? to get help", arg);
+                    }
                     validKeyValueArgs[arg](parameters, arguementValue);
                 }
                 else
@@ -182,7 +187,7 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
                                 message.Id);
                         }
 
-                        var sourceQueue = (string)transportMessageToSend.Headers[Headers.SourceQueue];
+                        var sourceQueue = (string) transportMessageToSend.Headers[Headers.SourceQueue];
                         if (parameters.SourceQueue != null)
                         {
                             sourceQueue = parameters.SourceQueue; //overwrite
@@ -196,8 +201,8 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
                         }
                         else
                         {
-                            var answer = PromptChar(new[] { 'y', 'n' }, "Would you like to move {0} to {1}? (y/n)",
-                                                    message.Id, sourceQueue);
+                            var answer = PromptChar(new[] {'y', 'n'}, "Would you like to move {0} to {1}? (y/n)",
+                                message.Id, sourceQueue);
 
                             if (answer == 'y')
                             {
@@ -208,8 +213,8 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
                             else
                             {
                                 rabbitMqMessageQueue.Send(rabbitMqMessageQueue.InputQueueAddress,
-                                                      transportMessageToSend,
-                                                      transactionContext);
+                                    transportMessageToSend,
+                                    transactionContext);
 
                                 Print("Moved {0} to {1}", message.Id, rabbitMqMessageQueue.InputQueueAddress);
                             }
@@ -220,8 +225,8 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
                         Print(e.Message);
 
                         rabbitMqMessageQueue.Send(rabbitMqMessageQueue.InputQueueAddress,
-                                              transportMessageToSend,
-                                              transactionContext);
+                            transportMessageToSend,
+                            transactionContext);
                     }
                 }
 
@@ -237,7 +242,7 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
                     return;
                 }
 
-                var commitAnswer = PromptChar(new[] { 'y', 'n' }, "Would you like to commit the queue transaction?");
+                var commitAnswer = PromptChar(new[] {'y', 'n'}, "Would you like to commit the queue transaction?");
 
                 if (commitAnswer == 'y')
                 {
@@ -305,6 +310,7 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
             {
             }
         }
+
         static NiceException HelpException()
         {
             return new NiceException(@"Rebus Return To Source Queue Tool - RabbitMQ
@@ -315,12 +321,13 @@ Invoke without any arguments
 
 to be prompted for each option. Or invoke with the following arguments:
 
-    returnToSourceQueue.rabbitmq.exe <errorQueueName> <hostname> [--auto-move] [--dry]
+    returnToSourceQueue.rabbitmq.exe <errorQueueName> <hostname> [--auto-move] [--dry] [--SourceQueue=??]
 
 where the following options are available:
 
     --auto-move :   Will quickly run through all message, moving those that can be moved
     --dry       :   Will SIMULATE running, i.e. no messages will actually be moved
+    --SourceQueue= : Will overwrite the destinationQueue. Use like: --SourceQueue=myOtherQueue
 
 e.g. like this:
 
@@ -336,6 +343,7 @@ in order to automatically retry all messages that have the '{0}' header set, or
 
 in order to SIMULATE automatically processing all messages (queue transaction will be aborted).", Headers.SourceQueue);
         }
+
         static IEnumerable<ReceivedTransportMessage> GetAllTheMessages(IReceiveMessages messageQueue, ITransactionContext transactionContext)
         {
             var messages = new List<ReceivedTransportMessage>();
