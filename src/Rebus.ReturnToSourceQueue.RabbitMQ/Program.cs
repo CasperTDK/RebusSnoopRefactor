@@ -95,9 +95,9 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
 
         static Parameters ParseArgs(string[] args)
         {
-            if (args.Length == 0) return new Parameters {Interactive = true};
+            if (args.Length == 0) return new Parameters { Interactive = true };
 
-            var parameters = new Parameters {Interactive = false};
+            var parameters = new Parameters { Interactive = false };
 
             if (args.Any(a => a.Contains('?')))
             {
@@ -255,7 +255,12 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
         {
             Console.Write(question, objs);
             Console.Write(" > ");
-            return Console.ReadLine();
+            string response;
+            do
+            {
+                response = Console.ReadLine();
+            } while (String.IsNullOrEmpty(response) || response.Contains(Environment.NewLine));
+            return response;
         }
 
         static char PromptChar(char[] validChars, string question, params object[] objs)
