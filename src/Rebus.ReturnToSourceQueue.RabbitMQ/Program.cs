@@ -95,9 +95,9 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
 
         static Parameters ParseArgs(string[] args)
         {
-            if (args.Length == 0) return new Parameters { Interactive = true };
+            if (args.Length == 0) return new Parameters {Interactive = true};
 
-            var parameters = new Parameters { Interactive = false };
+            var parameters = new Parameters {Interactive = false};
 
             if (args.Any(a => a.Contains('?')))
             {
@@ -115,59 +115,40 @@ namespace Rebus.ReturnToSourceQueue.RabbitMQ
             parameters.Host = argsNotFlags.ElementAtOrDefault(1);
 
             var theRestOfTheArguments = args.Except(argsNotFlags)
-                                            .Select(a => a.ToLowerInvariant())
-                                            .ToArray();
+                .Select(a => a.ToLowerInvariant())
+                .ToArray();
 
-            var validArgs = new Dictionary<string, Action<Parameters>> 
-                                {
-                                    {"--auto-move", p => p.AutoMoveAllMessages = true},
-                                    {"--dry", p => p.DryRun = true}
-                                };
+            var validArgs = new Dictionary<string, Action<Parameters>>
+            {
+                {"--auto-move", p => p.AutoMoveAllMessages = true},
+                {"--dry", p => p.DryRun = true},
+            };
+
+            var validKeyValueArgs = new Dictionary<string, Action<Parameters, string>>
+            {
+                {"--SourceQueue", (p, value) => p.SourceQueue = value}
+            };
+
 
             foreach (var arg in theRestOfTheArguments)
             {
-                if (!validArgs.Keys.Contains(arg))
+                if (!validArgs.Keys.Contains(arg) && !validKeyValueArgs.Keys.Contains(arg))
                 {
                     throw new NiceException("Unknown argument: {0} - invoke with ? to get help", arg);
                 }
 
                 // apply the argument
-                validArgs[arg](parameters);
+                if (arg.Contains("="))
+                {
+                    var arguementValue = arg.Split('=').Last();
+                    validKeyValueArgs[arg](parameters, arguementValue);
+                }
+                else
+                {
+                    validArgs[arg](parameters);
+                }
             }
-
             return parameters;
-        }
-
-        static NiceException HelpException()
-        {
-            return new NiceException(@"Rebus Return To Source Queue Tool - RabbitMQ
-
-Invoke without any arguments
-
-    returnToSourceQueue.rabbitmq.exe
-
-to be prompted for each option. Or invoke with the following arguments:
-
-    returnToSourceQueue.rabbitmq.exe <errorQueueName> <hostname> [--auto-move] [--dry]
-
-where the following options are available:
-
-    --auto-move :   Will quickly run through all message, moving those that can be moved
-    --dry       :   Will SIMULATE running, i.e. no messages will actually be moved
-
-e.g. like this:
-
-    returnToSourceQueue.rabbitmq myErrorQueue ampq://hostname
-
-in order to start processing the messages from 'myErrorQueue', or
-
-    returnToSourceQueue.rabbitmq myErrorQueue ampq:://hostname --auto-move
-
-in order to automatically retry all messages that have the '{0}' header set, or
-
-    returnToSourceQueue.rabbitmq myErrorQueue ampq://hostname --auto-move --dry
-
-in order to SIMULATE automatically processing all messages (queue transaction will be aborted).", Headers.SourceQueue);
         }
 
 
@@ -202,6 +183,10 @@ in order to SIMULATE automatically processing all messages (queue transaction wi
                         }
 
                         var sourceQueue = (string)transportMessageToSend.Headers[Headers.SourceQueue];
+                        if (parameters.SourceQueue != null)
+                        {
+                            sourceQueue = parameters.SourceQueue; //overwrite
+                        }
 
                         if (parameters.AutoMoveAllMessages.GetValueOrDefault())
                         {
@@ -305,6 +290,7 @@ in order to SIMULATE automatically processing all messages (queue transaction wi
             public bool? AutoMoveAllMessages { get; set; }
 
             public bool? DryRun { get; set; }
+            public string SourceQueue { get; set; }
         }
 
         class NiceException : ApplicationException
@@ -314,7 +300,37 @@ in order to SIMULATE automatically processing all messages (queue transaction wi
             {
             }
         }
+        static NiceException HelpException()
+        {
+            return new NiceException(@"Rebus Return To Source Queue Tool - RabbitMQ
 
+Invoke without any arguments
+
+    returnToSourceQueue.rabbitmq.exe
+
+to be prompted for each option. Or invoke with the following arguments:
+
+    returnToSourceQueue.rabbitmq.exe <errorQueueName> <hostname> [--auto-move] [--dry]
+
+where the following options are available:
+
+    --auto-move :   Will quickly run through all message, moving those that can be moved
+    --dry       :   Will SIMULATE running, i.e. no messages will actually be moved
+
+e.g. like this:
+
+    returnToSourceQueue.rabbitmq myErrorQueue ampq://hostname
+
+in order to start processing the messages from 'myErrorQueue', or
+
+    returnToSourceQueue.rabbitmq myErrorQueue ampq:://hostname --auto-move
+
+in order to automatically retry all messages that have the '{0}' header set, or
+
+    returnToSourceQueue.rabbitmq myErrorQueue ampq://hostname --auto-move --dry
+
+in order to SIMULATE automatically processing all messages (queue transaction will be aborted).", Headers.SourceQueue);
+        }
         static IEnumerable<ReceivedTransportMessage> GetAllTheMessages(IReceiveMessages messageQueue, ITransactionContext transactionContext)
         {
             var messages = new List<ReceivedTransportMessage>();
